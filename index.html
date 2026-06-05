@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>İleri Düzey IS-LM-FE Analizi</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f0f4f8;
+            color: #2c3e50;
+            display: flex;
+            justify-content: center;
+            padding: 30px 15px;
+            margin: 0;
+        }
+        .container {
+            display: flex;
+            gap: 25px;
+            background: #ffffff;
+            padding: 25px;
+            border-radius: 16px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.08);
+            max-width: 1100px;
+            width: 100%;
+        }
+        .controls {
+            flex: 1;
+            min-width: 280px;
+            background: #f9fbfd;
+            padding: 20px;
+            border-radius: 12px;
+            border: 1px solid #e1e8ed;
+        }
+        .chart-area {
+            flex: 2;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+        h2 {
+            margin-top: 0;
+            font-size: 18px;
+            color: #34495e;
+            border-bottom: 2px solid #ecf0f1;
+            padding-bottom: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .reset-btn {
+            background: #e74c3c;
+            color: white;
+            border: none;
+            padding: 5px 10px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+        .reset-btn:hover { background: #c0392b; }
+        .slider-group {
+            margin-bottom: 20px;
+        }
+        label {
+            display: flex;
+            justify-content: space-between;
+            font-weight: 600;
+            font-size: 13px;
+            margin-bottom: 8px;
+            color: #555;
+        }
+        span.val {
+            color: #2980b9;
+            font-weight: bold;
+            background: #e1f0fa;
+            padding: 2px 8px;
+            border-radius: 10px;
+        }
+        input[type=range] {
+            width: 100%;
+            cursor: pointer;
+            accent-color: #3498db;
+        }
+        canvas {
+            border: 1px solid #ecf0f1;
+            background: #ffffff;
+            border-radius: 12px;
+            box-shadow: inset 0 2px 10px rgba(0,0,0,0.02);
+        }
+        .analysis-box {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+        }
+        .card {
+            padding: 15px;
+            border-radius: 8px;
+            font-size: 14px;
+            line-height: 1.6;
+        }
+        .status-card {
+            background: #eaf2f8;
+            border-left: 4px solid #3498db;
+        }
+        .reason-card {
+            background: #fef9e7;
+            border-left: 4px solid #f1c40f;
+            grid-column: 1 / -1;
+        }
+        .warning-card {
+            background: #fdf2e9;
+            border-left: 4px solid #e67e22;
+        }
+        .card h3 {
+            margin: 0 0 10px 0;
+            font-size: 15px;
+            color: #2c3e50;
+        }
+        ul { margin: 0; padding-left: 20px; }
+        li { margin-bottom: 8px; }
+
+        @media (max-width: 850px) {
+            .container { flex-direction: column; }
+            .analysis-box { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="controls">
+        <h2>
+            Politika Paneli
+            <button class="reset-btn" onclick="resetSliders()">Sıfırla</button>
+        </h2>
+        
+        <div class="slider-group">
+            <label>Kamu Harcamaları (G) <span id="valG" class="val">50</span></label>
+            <input type="range" id="sliderG" min="0" max="100" value="50">
+        </div>
+        
+        <div class="slider-group">
+            <label>Vergiler (T) <span id="valT" class="val">50</span></label>
+            <input type="range" id="sliderT" min="0" max="100" value="50">
+        </div>
+        
+        <div class="slider-group">
+            <label>Para Arzı (Ms) <span id="valM" class="val">50</span></label>
+            <input type="range" id="sliderM" min="0" max="100" value="50">
+        </div>
+        
+        <div class="slider-group">
+            <label>Arz Şokları (Teknoloji) <span id="valS" class="val">50</span></label>
+            <input type="range" id="sliderS" min="0" max="100" value="50">
+        </div>
+    </div>
+
+    <div class="chart-area">
+        <canvas id="macroCanvas" width="700" height="400"></canvas>
+        
+        <div class="analysis-box">
+            <div class="card status-card" id="resultBox">
+                <!-- Kısa dönem verileri buraya gelecek -->
+            </div>
+            <div class="card warning-card" id="gapBox">
+                <!-- Çıktı açığı verileri buraya gelecek -->
+            </div>
+            <div class="card reason-card" id="reasonBox">
+                <!-- Neden-Sonuç açıklamaları buraya gelecek -->
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    const canvas = document.getElementById('macroCanvas');
+    const ctx = canvas.getContext('2d');
+    
+    const sliders = {
+        G: document.getElementById('sliderG'),
+        T: document.getElementById('sliderT'),
+        M: document.getElementById('sliderM'),
+        S: document.getElementById('sliderS')
+    };
+    
+    const vals = {
+        G: document.getElementById('valG'),
+        T: document.getElementById('valT'),
+        M: document.getElementById('valM'),
+        S: document.getElementById('valS')
+    };
+
+    function resetSliders() {
+        Object.values(sliders).forEach(s => s.value = 50);
+        draw();
+    }
+
+    const w = canvas.width;
+    const h = canvas.height;
+    const margin = { top: 30, right: 30, bottom: 40, left: 50 };
+    const chartW = w - margin.left - margin.right;
+    const chartH = h - margin.top - margin.bottom;
+
+    const scaleX = (y) => margin.left + (y / 1000) * chartW;
+    const scaleY = (r) => h - margin.bottom - (r / 100) * chartH;
+
+    function drawLine(x1, y1, x2, y2, color, width, isDashed = false, text = '', textX = 0, textY = 0) {
+        ctx.beginPath();
+        ctx.strokeStyle = color;
+        ctx.lineWidth = width;
+        if(isDashed) ctx.setLineDash([5, 5]);
+        else ctx.setLineDash([]);
+        ctx.moveTo(x1, y1);
+        ctx.lineTo(x2, y2);
+        ctx.stroke();
+        
+        if (text) {
+            ctx.fillStyle = color;
+            ctx.font = isDashed ? 'italic 12px Arial' : 'bold 14px Arial';
+            ctx.fillText(text, textX, textY);
+        }
+    }
+
+    function draw() {
+        const G = parseInt(sliders.G.value);
+        const T = parseInt(sliders.T.value);
+        const M = parseInt(sliders.M.value);
+        const S = parseInt(sliders.S.value);
+
+        vals.G.innerText = G; vals.T.innerText = T;
+        vals.M.innerText = M; vals.S.innerText = S;
+
+        // Başlangıç (Eski) Durumu Denklemleri
+        const is0_int = 100;
+        const lm0_int = 0;
+        const fe0_Y = 500;
+
+        // Mevcut (Yeni) Durum Denklemleri
+        const isIntercept = 100 + (G - 50) - (T - 50);
+        const lmIntercept = -(M - 50);
+        const feY = 500 + (S - 50) * 5;
+
+        // Denge Noktaları
+        const eq0_Y = (is0_int - lm0_int) / 0.2; // 500
+        const eq0_R = 0.1 * eq0_Y + lm0_int; // 50
+        
+        const eqY = (isIntercept - lmIntercept) / 0.2;
+        const eqR = 0.1 * eqY + lmIntercept;
+
+        ctx.clearRect(0, 0, w, h);
+
+        // Eksenler
+        ctx.setLineDash([]);
+        drawLine(margin.left, margin.top - 10, margin.left, h - margin.bottom, '#333', 2);
+        drawLine(margin.left, h - margin.bottom, w - margin.right + 10, h - margin.bottom, '#333', 2);
+        ctx.fillStyle = '#333'; ctx.font = '13px Arial';
+        ctx.fillText('Faiz Oranı (r)', margin.left - 40, margin.top - 20);
+        ctx.fillText('Hasıla (Y)', w - margin.right - 30, h - margin.bottom + 35);
+
+        // --- HAYALET EĞRİLER (ESKİ KONUMLAR) ---
+        // Eğer herhangi bir değer 50'den farklıysa eski eğrileri çiz
+        if(G !== 50 || T !== 50) {
+            drawLine(scaleX(0), scaleY(is0_int), scaleX(1000), scaleY(is0_int - 0.1 * 1000), 'rgba(231, 76, 60, 0.3)', 2, true, 'IS₀', scaleX(900), scaleY(is0_int - 0.1 * 900) - 10);
+        }
+        if(M !== 50) {
+            drawLine(scaleX(0), scaleY(lm0_int), scaleX(1000), scaleY(0.1 * 1000 + lm0_int), 'rgba(41, 128, 185, 0.3)', 2, true, 'LM₀', scaleX(900), scaleY(0.1 * 900 + lm0_int) - 10);
+        }
+        if(S !== 50) {
+            drawLine(scaleX(fe0_Y), margin.top, scaleX(fe0_Y), h - margin.bottom, 'rgba(39, 174, 96, 0.3)', 2, true, 'FE₀', scaleX(fe0_Y) - 25, margin.top - 5);
+        }
+
+        // --- YENİ EĞRİLER ---
+        drawLine(scaleX(feY), margin.top, scaleX(feY), h - margin.bottom, '#27ae60', 3, false, 'FE₁', scaleX(feY) + 5, margin.top - 5); // FE
+        drawLine(scaleX(0), scaleY(isIntercept), scaleX(1000), scaleY(isIntercept - 0.1 * 1000), '#e74c3c', 3, false, 'IS₁', scaleX(850), scaleY(isIntercept - 0.1 * 850) - 10); // IS
+        drawLine(scaleX(0), scaleY(lmIntercept), scaleX(1000), scaleY(0.1 * 1000 + lmIntercept), '#2980b9', 3, false, 'LM₁', scaleX(850), scaleY(0.1 * 850 + lmIntercept) - 10); // LM
+
+        // Denge Noktası
+        ctx.beginPath();
+        ctx.arc(scaleX(eqY), scaleY(eqR), 6, 0, 2 * Math.PI);
+        ctx.fillStyle = '#8e44ad'; ctx.fill();
+        ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.stroke();
+
+        // Kesişim İzdüşümleri
+        drawLine(scaleX(eqY), scaleY(eqR), margin.left, scaleY(eqR), '#7f8c8d', 1, true);
+        drawLine(scaleX(eqY), scaleY(eqR), scaleX(eqY), h - margin.bottom, '#7f8c8d', 1, true);
+
+        // --- METİN VE AÇIKLAMALAR ---
+        
+        // 1. Kısa Dönem Kartı
+        document.getElementById('resultBox').innerHTML = `
+            <h3>📊 Kısa Dönem Dengesi</h3>
+            <b>Hasıla (Y):</b> ${Math.round(eqY)}<br>
+            <b>Faiz Oranı (r):</b> %${Math.max(0, Math.round(eqR))}
+        `;
+
+        // 2. Çıktı Açığı Kartı
+        let gapHtml = `<h3>⚖️ Kapasite Durumu</h3>`;
+        if (Math.round(eqY) > feY) {
+            gapHtml += `<span style="color:#c0392b; font-weight:bold;">Enflasyonist Açık var (+${Math.round(eqY - feY)})</span><br>Ekonomi potansiyelinin üzerinde ısınıyor, fiyat artışı riski yüksek.`;
+        } else if (Math.round(eqY) < feY) {
+            gapHtml += `<span style="color:#d35400; font-weight:bold;">Deflasyonist Açık var (-${Math.round(feY - eqY)})</span><br>Ekonomi potansiyelinin altında, eksik istihdam ve işsizlik var.`;
+        } else {
+            gapHtml += `<span style="color:#27ae60; font-weight:bold;">Tam İstihdam</span><br>Ekonomi tam kapasitesinde dengede çalışıyor.`;
+        }
+        document.getElementById('gapBox').innerHTML = gapHtml;
+
+        // 3. Neden-Sonuç (Mekanizma) Kartı
+        let reasonsHtml = `<h3>🧠 Neden Böyle Oldu? (Mekanizma Özeti)</h3><ul>`;
+        let changed = false;
+
+        if (G > 50) { reasonsHtml += `<li><b>Kamu Harcamaları Arttı:</b> Piyasaya giren para, mal talebini artırdı. Firmalar üretimi artırdı (Hasıla yükseldi). Artan canlılık paraya talebi artırdığı için faizler de yukarı yönlü baskılandı (IS sağa kaydı).</li>`; changed = true; }
+        if (G < 50) { reasonsHtml += `<li><b>Kamu Harcamaları Kısıldı:</b> Devletin harcamaları kesmesi toplam talebi düşürdü. Fabrikalar üretimi kıstı (Hasıla düştü) ve paraya talep azaldığı için faizler geriledi (IS sola kaydı).</li>`; changed = true; }
+        
+        if (T > 50) { reasonsHtml += `<li><b>Vergiler Arttı:</b> Tüketicilerin cebinde kalan harcanabilir gelir azaldığı için harcamalarını kıstılar. Bu durum üretimi (hasılayı) düşürdü (IS sola kaydı).</li>`; changed = true; }
+        if (T < 50) { reasonsHtml += `<li><b>Vergiler İndirildi:</b> İnsanların elinde daha çok para kaldığı için tüketime yöneldiler. Artan talep hasılayı yükseltti (IS sağa kaydı).</li>`; changed = true; }
+
+        if (M > 50) { reasonsHtml += `<li><b>Para Arzı Arttı (Genişletici Politika):</b> Merkez bankası piyasaya para sürdü. Bollaşan paranın maliyeti (faiz oranı) düştü. Ucuz krediler firmaların yatırım yapmasını kolaylaştırdı ve hasıla arttı (LM sağa kaydı).</li>`; changed = true; }
+        if (M < 50) { reasonsHtml += `<li><b>Para Arzı Daraldı (Sıkı Politika):</b> Piyasadan para çekilmesi faiz oranlarını yükseltti. Pahalı kredi, yatırımları ve tüketimi frenleyerek hasılayı düşürdü (LM sola kaydı).</li>`; changed = true; }
+
+        if (S > 50) { reasonsHtml += `<li><b>Olumlu Arz Şoku:</b> Teknolojik bir yenilik veya ucuzlayan enerji maliyetleri, ekonominin "üretebileceği maksimum kapasiteyi" artırdı (FE sağa kaydı).</li>`; changed = true; }
+        if (S < 50) { reasonsHtml += `<li><b>Olumsuz Arz Şoku:</b> Doğal afet, savaş veya enerji krizi gibi bir neden ekonominin üretim kapasitesini kalıcı olarak düşürdü (FE sola kaydı).</li>`; changed = true; }
+
+        if (!changed) {
+            reasonsHtml += `<li>Şu an başlangıç dengesindesiniz (Referans Noktası).<br>Sol taraftaki kaydırıcıları kullanarak eğrileri hareket ettirin ve ekonomideki zincirleme reaksiyonları gözlemleyin.</li>`;
+        }
+        
+        reasonsHtml += `</ul>`;
+        document.getElementById('reasonBox').innerHTML = reasonsHtml;
+    }
+
+    Object.values(sliders).forEach(slider => {
+        slider.addEventListener('input', draw);
+    });
+
+    draw();
+</script>
+
+</body>
+</html>
